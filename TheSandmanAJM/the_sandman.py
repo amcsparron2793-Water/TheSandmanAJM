@@ -1,7 +1,6 @@
 from datetime import datetime
 from logging import getLogger, Logger
 from time import sleep
-from typing import Union, Optional
 
 from tqdm import tqdm
 
@@ -25,16 +24,14 @@ class TheSandman:
     """
     # default 600 secs = 10 minutes
     DEFAULT_SLEEP_TIME_SECONDS = 600
-    DEFAULT_SNOOZE_EXPIRATION_LIMIT_HOURS = 24
-    SECONDS_IN_HOUR = 3600
     DEFAULT_USE_VISUAL_SLEEP = True
+    DEFAULT_SILENT_SLEEP = False
 
     def __init__(self, sleep_time_seconds=None, **kwargs):
         self.sleep_time_start = None
         self.use_visual_sleep = kwargs.get('use_visual_sleep', self.__class__.DEFAULT_USE_VISUAL_SLEEP)
+        self.silent_sleep = kwargs.get('silent_sleep', self.__class__.DEFAULT_SILENT_SLEEP)
 
-        self.snooze_expiration_limit_hours = kwargs.get('snooze_expiration_limit_hours',
-                                                        self.__class__.DEFAULT_SNOOZE_EXPIRATION_LIMIT_HOURS)
         self.sleep_time: int = sleep_time_seconds or self.__class__.DEFAULT_SLEEP_TIME_SECONDS
         self._is_time_remaining = False
         self._sleep_time_string = None
@@ -65,6 +62,10 @@ class TheSandman:
         self.sleep_time_start = datetime.now().strftime('%m/%d/%Y %H:%M')
         if self.use_visual_sleep:
             kwargs['print_msg'] = False
+        elif self.silent_sleep:
+            kwargs['print_msg'] = False
+        else:
+            kwargs['print_msg'] = True
         self._is_time_remaining = False
         return kwargs
 
@@ -104,21 +105,13 @@ class TheSandman:
 
         self.sleep_time_string = self.sleep_time if not self._is_time_remaining else sleep_time_seconds
         self.logger.info(self.sleep_time_string, **kwargs)
+
         if self.use_visual_sleep:
             self.visual_sleep(sleep_time_seconds)
         else:
+            if not self.silent_sleep:
+                print(self.sleep_time_string)
             sleep(sleep_time_seconds)
-
-    @classmethod
-    def is_snooze_expired(cls, snoozed_at: datetime, snooze_expiration_limit_hours: Optional[int] = None):
-        if not snooze_expiration_limit_hours:
-            snooze_expiration_limit_hours = cls.DEFAULT_SNOOZE_EXPIRATION_LIMIT_HOURS
-        snooze_expiration_limit_seconds = snooze_expiration_limit_hours * cls.SECONDS_IN_HOUR
-        time_since_snooze = (datetime.now() - snoozed_at)
-        if time_since_snooze.total_seconds() >= snooze_expiration_limit_seconds:
-            #print('msg_snoozed expired! Unsnoozing now!')
-            return True
-        return False
 
 
 if __name__ == '__main__':
