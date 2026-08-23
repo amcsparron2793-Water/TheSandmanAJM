@@ -1,0 +1,10 @@
+-r requirements.txt
+
+setuptools
+build
+colorama
+packaging
+pyproject_hooks
+tox
+pytest
+twine
