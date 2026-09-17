@@ -30,21 +30,21 @@ def test_initialization_custom():
 def test_sleep_time_string_seconds(sandman):
     sandman.sleep_time_start = "2026-08-23 14:30"
     sandman.sleep_time_string = 45
-    assert "sleeping for 45  second(s)" in sandman.sleep_time_string
-    assert "(started at 2026-08-23 14:30)" in sandman.sleep_time_string
+    assert "sleeping for 45  second(s)" in sandman.sleep_time_string.lower()
+    assert "(started at 2026-08-23 14:30)" in sandman.sleep_time_string.lower()
 
 
 def test_sleep_time_string_minutes(sandman):
     sandman.sleep_time_start = "2026-08-23 14:30"
     sandman.sleep_time_string = 125
-    assert "sleeping for 2  minute(s)" in sandman.sleep_time_string
+    assert "sleeping for 2  minute(s)" in sandman.sleep_time_string.lower()
 
 
 def test_sleep_time_string_with_remaining(sandman):
     sandman.sleep_time_start = "2026-08-23 14:30"
     sandman._is_time_remaining = True
     sandman.sleep_time_string = 30
-    assert "sleeping for 30 more second(s)" in sandman.sleep_time_string
+    assert "sleeping for 30 more second(s)" in sandman.sleep_time_string.lower()
 
 
 def test_setup_sleep_in_rounds(sandman):

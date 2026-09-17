@@ -1,11 +1,29 @@
 from datetime import datetime
 from logging import getLogger, Logger
 from time import sleep
+from typing import Union
 
 from tqdm import tqdm
 
 
-class TheSandman:
+class _TimerFormatting:
+    MINUTES = 'minute(s)'
+    SECONDS = 'second(s)'
+    TIME_STRING_BASE = '{} {}'
+
+    @classmethod
+    def time_calculated_string(cls, time_seconds: Union[int, float]):
+        time_calculated = time_seconds // 60 if time_seconds >= 60 else time_seconds
+        suffix = cls.MINUTES if time_seconds >= 60 else cls.SECONDS
+        return time_calculated, suffix
+
+    @classmethod
+    def format_time_string(cls, time_seconds: Union[int, float], format_args=()):
+        time_calculated, suffix = cls.time_calculated_string(time_seconds)
+        return (cls.TIME_STRING_BASE.format(time_calculated, *format_args) + suffix).strip()
+
+
+class TheSandman(_TimerFormatting):
     """
         A utility class to facilitate and log time delays with custom sleep durations.
 
@@ -26,6 +44,7 @@ class TheSandman:
     DEFAULT_SLEEP_TIME_SECONDS = 600
     DEFAULT_USE_VISUAL_SLEEP = True
     DEFAULT_SILENT_SLEEP = False
+    TIME_STRING_BASE = 'Sleeping for {} {} '
 
     def __init__(self, sleep_time_seconds=None, **kwargs):
         self.sleep_time_start = None
@@ -38,7 +57,24 @@ class TheSandman:
 
         self.logger: Logger = kwargs.get('logger', getLogger(__name__))
         self.sleep_time_string = self.sleep_time
-        self.logger.info(f'{self.__class__.__name__} initialized - sleep time set as {self.sleep_time_string}')
+        self.logger.info(f'{self.__class__.__name__} initialized - {self.sleep_time_string} when called')
+
+    @classmethod
+    def format_time_string(cls, sleep_time_seconds: int, more: str = ''):
+        return super().format_time_string(sleep_time_seconds, {more})
+
+    def _needs_more_str_check(self) -> str:
+        if self._is_time_remaining:
+            more = 'more'
+        else:
+            more = ''
+        return more
+
+    def sleep_time_with_start_string(self, sleep_time_string):
+        if self.sleep_time_start:
+            str_parts = [sleep_time_string, f'(started at {self.sleep_time_start})']
+            return ' '.join(str_parts)
+        return sleep_time_string
 
     @property
     def sleep_time_string(self):
@@ -54,17 +90,9 @@ class TheSandman:
 
     @sleep_time_string.setter
     def sleep_time_string(self, time_value_seconds: int):
-        if self._is_time_remaining:
-            more = 'more'
-        else:
-            more = ''
-        if time_value_seconds >= 60:
-            self._sleep_time_string = f'sleeping for {time_value_seconds // 60} {more} minute(s)'
-        else:
-            self._sleep_time_string = f'sleeping for {time_value_seconds} {more} second(s)'
-
-        str_parts = [self._sleep_time_string, f'(started at {self.sleep_time_start})']
-        self._sleep_time_string = ' '.join(str_parts)
+        more = self._needs_more_str_check()
+        sts = self.format_time_string(time_value_seconds, more)
+        self._sleep_time_string = self.sleep_time_with_start_string(sts)
 
     def _setup_sleep_in_rounds(self, **kwargs):
         """
@@ -115,9 +143,14 @@ class TheSandman:
     def _basic_log_or_print_sleep_time_string(self, **kwargs):
         print_msg = kwargs.get('print_msg', False)
         has_usable_logger = hasattr(self, 'logger') and self.logger.hasHandlers()
+
+        print_by_default = (not self.silent_sleep
+                            and not has_usable_logger
+                            and not self.use_visual_sleep)
+
         if has_usable_logger:
             self.logger.info(self.sleep_time_string, **kwargs)
-        if (not self.silent_sleep and not has_usable_logger) or print_msg:
+        if print_by_default or print_msg:
             print(self.sleep_time_string)
 
     def visual_sleep(self, sleep_time_seconds: int) -> None:
@@ -157,7 +190,6 @@ class TheSandman:
         :return: None
         :rtype: None
         """
-
         self.sleep_time_string = self.sleep_time if not self._is_time_remaining else sleep_time_seconds
         self._basic_log_or_print_sleep_time_string(**kwargs)
 
