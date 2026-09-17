@@ -38,7 +38,7 @@ class TheSandman:
 
         self.logger: Logger = kwargs.get('logger', getLogger(__name__))
         self.sleep_time_string = self.sleep_time
-        self.logger.info(f'TheSandman initialized - sleep time set as {self.sleep_time_string}')
+        self.logger.info(f'{self.__class__.__name__} initialized - sleep time set as {self.sleep_time_string}')
 
     @property
     def sleep_time_string(self):
