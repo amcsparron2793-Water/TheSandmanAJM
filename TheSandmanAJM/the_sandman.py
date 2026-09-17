@@ -42,23 +42,45 @@ class TheSandman:
 
     @property
     def sleep_time_string(self):
+        """
+        This property returns the string representation of the sleep time. The
+        sleep time is represented as a string based on the underlying internal
+        attribute.
+
+        :return: A string representing the sleep time.
+        :rtype: str
+        """
         return self._sleep_time_string
 
     @sleep_time_string.setter
-    def sleep_time_string(self, value: int):
+    def sleep_time_string(self, time_value_seconds: int):
         if self._is_time_remaining:
             more = 'more'
         else:
             more = ''
-        if value >= 60:
-            self._sleep_time_string = f'sleeping for {value // 60} {more} minute(s)'
+        if time_value_seconds >= 60:
+            self._sleep_time_string = f'sleeping for {time_value_seconds // 60} {more} minute(s)'
         else:
-            self._sleep_time_string = f'sleeping for {value} {more} second(s)'
+            self._sleep_time_string = f'sleeping for {time_value_seconds} {more} second(s)'
 
         str_parts = [self._sleep_time_string, f'(started at {self.sleep_time_start})']
         self._sleep_time_string = ' '.join(str_parts)
 
     def _setup_sleep_in_rounds(self, **kwargs):
+        """
+        Configures sleep behavior for the current operation round.
+
+        This method initializes or adjusts sleep configuration parameters based on the
+        current operational mode. It sets the start time, determines whether sleep
+        notifications should be printed, and flags whether time remains for the current
+        cycle. The returned dictionary of keyword arguments reflects these updated
+        settings.
+
+        :param kwargs: Keyword arguments to configure sleep parameters. The content of
+            this dictionary is modified based on the current configuration and returned
+            with updated values.
+        :return: Updated keyword arguments reflecting sleep configuration adjustments.
+        """
         self.sleep_time_start = datetime.now().strftime('%m/%d/%Y %H:%M')
         if self.use_visual_sleep or self.silent_sleep:
             kwargs['print_msg'] = False
@@ -74,6 +96,17 @@ class TheSandman:
         self.sleep(sleep_time_seconds, print_msg=print_msg, **kwargs)
 
     def sleep_in_rounds(self, rounds=2, **kwargs):
+        """
+        Executes a sleep process divided into multiple rounds. In each round, specific
+        parameters from the `kwargs` are utilized to configure the sleep behavior. The
+        process involves iterating through the specified number of rounds and invoking
+        a helper function to handle each round.
+
+        :param rounds: Number of rounds to execute the sleep process. Defaults to 2.
+        :type rounds: int
+        :param kwargs: Additional configuration parameters for the sleep behavior.
+        :type kwargs: dict
+        """
         kwargs = self._setup_sleep_in_rounds(**kwargs)
 
         for sleep_round in range(rounds):
@@ -88,12 +121,27 @@ class TheSandman:
             print(self.sleep_time_string)
 
     def visual_sleep(self, sleep_time_seconds: int) -> None:
+        """
+        Pauses the execution of the program for the given number of seconds while providing
+        a visual progress indicator using a progress bar.
+
+        :param sleep_time_seconds: The number of seconds to pause execution.
+        :type sleep_time_seconds: int
+        :return: None
+        :rtype: None
+
+        :raises Exception: If an error occurs during execution, logs the error and disables
+            the visual progress indicator before attempting a standard sleep operation.
+        :raises KeyboardInterrupt: If the operation is interrupted by the user, propagates
+            the exception to terminate execution.
+        """
         try:
             for _ in tqdm(range(sleep_time_seconds),
                           desc=f"{self.sleep_time_string}",
                           unit="second",
                           disable=self.silent_sleep):
                 sleep(1)
+        # pylint: disable=broad-except
         except Exception as e:
             if e.__class__.__name__ != 'KeyboardInterrupt':
                 self.logger.error(f"visual_sleep failed: {e}, turning off visual sleep and trying again...")
@@ -120,5 +168,5 @@ class TheSandman:
 
 
 if __name__ == '__main__':
-    ts = TheSandman(sleep_time_seconds=30, use_visual_sleep=False)
+    ts = TheSandman(sleep_time_seconds=30)
     ts.sleep_in_rounds(rounds=3)
