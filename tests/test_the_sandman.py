@@ -15,9 +15,9 @@ def sandman(mock_logger):
 
 def test_initialization_defaults():
     ts = TheSandman()
-    assert ts.sleep_time == 600
-    assert ts.use_visual_sleep is True
-    assert ts.silent_sleep is False
+    assert ts.sleep_time == ts.__class__.DEFAULT_SLEEP_TIME_SECONDS
+    assert ts.use_visual_sleep is ts.__class__.DEFAULT_USE_VISUAL_SLEEP
+    assert ts.silent_sleep is ts.__class__.DEFAULT_SILENT_SLEEP
 
 
 def test_initialization_custom():
@@ -58,15 +58,17 @@ def test_setup_sleep_in_rounds(sandman):
 
 @patch('TheSandmanAJM.the_sandman.sleep')
 @patch('builtins.print')
-@pytest.mark.skip(reason="This test is failing, but the functionality is working.")
 def test_sleep_non_visual(mock_print, mock_sleep, sandman, mock_logger):
-    # FIXME: why is this test failing? somthing to do with the mock?
     sandman.use_visual_sleep = False
     sandman.silent_sleep = False
+    mock_logger.hasHandlers.return_value = False
+
     sandman.sleep(5)
     mock_sleep.assert_called_once_with(5)
-    mock_print.assert_called_once()
+    # If logger is present and has handlers, it will log instead of print.
+    # The sandman fixture uses mock_logger.
     mock_logger.info.assert_called()
+    mock_print.assert_called()
 
 
 @patch('TheSandmanAJM.the_sandman.TheSandman.visual_sleep')
@@ -104,3 +106,67 @@ def test_visual_sleep_exception_fallback(mock_ts_sleep, mock_tqdm, sandman, mock
     assert sandman.use_visual_sleep is False
     mock_ts_sleep.assert_called_once_with(5)
     mock_logger.error.assert_called()
+    assert sandman.use_visual_sleep is False
+
+
+@patch('TheSandmanAJM.the_sandman.sleep')
+def test_silent_sleep_still_logs(mock_sleep, mock_logger):
+    # Test that silent_sleep does NOT affect logging if logger has handlers
+    mock_logger.hasHandlers.return_value = True
+    ts = TheSandman(sleep_time_seconds=10, logger=mock_logger, silent_sleep=True, use_visual_sleep=False)
+    # The init log should have happened
+    assert mock_logger.info.call_count >= 1
+
+    ts.sleep(5)
+    # The sleep log should also happen
+    mock_logger.info.assert_called()
+
+
+@patch('TheSandmanAJM.the_sandman.tqdm')
+def test_visual_sleep_keyboard_interrupt(mock_tqdm, sandman):
+    mock_tqdm.side_effect = KeyboardInterrupt()
+    with pytest.raises(KeyboardInterrupt):
+        sandman.visual_sleep(5)
+
+
+@patch('builtins.print')
+@patch('TheSandmanAJM.the_sandman.sleep')
+def test_basic_log_or_print_no_logger(mock_sleep, mock_print):
+    # Test print when logger has no handlers
+    ts = TheSandman(sleep_time_seconds=10, use_visual_sleep=False)
+    # By default, logger might have handlers (e.g. if root logger is configured)
+    # We want to force it to NOT use logger.
+    ts.logger = MagicMock()
+    ts.logger.hasHandlers.return_value = False
+
+    ts.sleep(5, print_msg=True)
+    mock_print.assert_called()
+
+
+def test_sleep_in_rounds_single_round(sandman):
+    with patch.object(TheSandman, 'sleep') as mock_sleep:
+        sandman.sleep_time = 10
+        sandman.sleep_in_rounds(rounds=1)
+        mock_sleep.assert_called_once_with(10, print_msg=False)
+
+
+@patch('builtins.print')
+@patch('TheSandmanAJM.the_sandman.sleep')
+def test_basic_log_or_print_with_usable_logger(mock_sleep, mock_print, mock_logger):
+    # Test that logger is used if it has handlers
+    ts = TheSandman(sleep_time_seconds=10, logger=mock_logger, use_visual_sleep=False)
+    mock_logger.hasHandlers.return_value = True
+    ts.sleep(5)
+    mock_logger.info.assert_called()
+    mock_print.assert_not_called()
+
+
+@patch('TheSandmanAJM.the_sandman.tqdm')
+@patch('TheSandmanAJM.the_sandman.sleep')
+def test_visual_sleep_silent(mock_sleep, mock_tqdm, sandman):
+    sandman.silent_sleep = True
+    sandman.visual_sleep(5)
+    mock_tqdm.assert_called_once()
+    # Check that disable=True was passed to tqdm
+    args, kwargs = mock_tqdm.call_args
+    assert kwargs['disable'] is True

@@ -84,14 +84,15 @@ class TheSandman:
         has_usable_logger = hasattr(self, 'logger') and self.logger.hasHandlers()
         if has_usable_logger:
             self.logger.info(self.sleep_time_string, **kwargs)
-        if (print_msg and not self.silent_sleep) and not has_usable_logger:
+        if (not self.silent_sleep and not has_usable_logger) or print_msg:
             print(self.sleep_time_string)
 
     def visual_sleep(self, sleep_time_seconds: int) -> None:
         try:
             for _ in tqdm(range(sleep_time_seconds),
                           desc=f"{self.sleep_time_string}",
-                          unit="second"):
+                          unit="second",
+                          disable=self.silent_sleep):
                 sleep(1)
         except Exception as e:
             if e.__class__.__name__ != 'KeyboardInterrupt':
@@ -119,5 +120,5 @@ class TheSandman:
 
 
 if __name__ == '__main__':
-    ts = TheSandman(sleep_time_seconds=30)
+    ts = TheSandman(sleep_time_seconds=30, use_visual_sleep=False)
     ts.sleep_in_rounds(rounds=3)
