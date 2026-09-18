@@ -74,6 +74,7 @@ class TheSandman(_TimerFormatting):
         if self.sleep_time_start:
             str_parts = [sleep_time_string, f'(started at {self.sleep_time_start})']
             return ' '.join(str_parts)
+        self.logger.debug(f"sleep_time_start is None, no need to add start time to string, returning: {sleep_time_string}")
         return sleep_time_string
 
     @property
