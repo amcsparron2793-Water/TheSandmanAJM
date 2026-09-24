@@ -3,7 +3,7 @@ from logging import getLogger, Logger
 from time import sleep
 from typing import Union
 
-from tqdm import tqdm
+from tqdm import tqdm, TqdmKeyError
 
 
 class _TimerFormatting:
@@ -141,20 +141,41 @@ class TheSandman(_TimerFormatting):
         for sleep_round in range(rounds):
             self._sleep_round(sleep_round, rounds, **kwargs)
 
+    def _remove_and_return_error_pair(self, err: Exception, flawed_kwargs: dict):
+        key_causing_error = err.args[0].split('\'')[1]
+        kwarg_value = flawed_kwargs.pop(key_causing_error)
+        original_key_value_pair = {key_causing_error: kwarg_value}
+        fixed_kwargs = {key: value for key, value in flawed_kwargs.items() if key != key_causing_error}
+        self.logger.debug(f"Returning original key value pair: {original_key_value_pair}, "
+                          f"fixed kwargs: {fixed_kwargs}")
+        return original_key_value_pair, fixed_kwargs
+
+    def _ignore_err_kwarg(self, err: Union[TypeError, KeyError], method_to_retry: str, kwargs: dict):
+        org_key_value_pair, kwargs = self._remove_and_return_error_pair(err, kwargs)
+        getattr(self, method_to_retry)(**kwargs)
+
+        kwargs.update(org_key_value_pair)
+        self.logger.debug(f"Updated kwargs: {kwargs}")
+        return kwargs
+
     def _basic_log_or_print_sleep_time_string(self, **kwargs):
-        print_msg = kwargs.get('print_msg', False)
-        has_usable_logger = hasattr(self, 'logger') and self.logger.hasHandlers()
+        try:
+            print_msg = kwargs.get('print_msg', False)
+            has_usable_logger = hasattr(self, 'logger') and self.logger.hasHandlers()
 
-        print_by_default = (not self.silent_sleep
-                            and not has_usable_logger
-                            and not self.use_visual_sleep)
+            print_by_default = (not self.silent_sleep
+                                and not has_usable_logger
+                                and not self.use_visual_sleep)
 
-        if has_usable_logger:
-            self.logger.info(self.sleep_time_string, **kwargs)
-        if print_by_default or print_msg:
-            print(self.sleep_time_string)
+            if has_usable_logger:
+                self.logger.info(self.sleep_time_string, **kwargs)
+            if print_by_default or print_msg:
+                print(self.sleep_time_string)
+        except (TypeError, KeyError) as e:
+            self.logger.debug(f"Error printing sleep time string: {e}")
+            self._ignore_err_kwarg(e, '_basic_log_or_print_sleep_time_string', kwargs)
 
-    def visual_sleep(self, sleep_time_seconds: int) -> None:
+    def visual_sleep(self, sleep_time_seconds: int, **kwargs) -> None:
         """
         Pauses the execution of the program for the given number of seconds while providing
         a visual progress indicator using a progress bar.
@@ -173,16 +194,21 @@ class TheSandman(_TimerFormatting):
             for _ in tqdm(range(sleep_time_seconds),
                           desc=f"{self.sleep_time_string}",
                           unit="second",
-                          disable=self.silent_sleep):
+                          disable=self.silent_sleep,
+                          **kwargs):
                 sleep(1)
+        except TqdmKeyError as e:
+            kwargs['sleep_time_seconds'] = sleep_time_seconds
+            kwargs = self._ignore_err_kwarg(e, 'visual_sleep', kwargs)
+
+        except KeyboardInterrupt:
+            raise
+
         # pylint: disable=broad-except
         except Exception as e:
-            if e.__class__.__name__ != 'KeyboardInterrupt':
-                self.logger.error(f"visual_sleep failed: {e}, turning off visual sleep and trying again...")
-                self.use_visual_sleep = False
-                self.sleep(sleep_time_seconds)
-            else:
-                raise
+            self.logger.error(f"visual_sleep failed: {e}, turning off visual sleep and trying again...")
+            self.use_visual_sleep = False
+            self.sleep(sleep_time_seconds)
 
     def sleep(self, sleep_time_seconds: int, **kwargs):
         """
@@ -195,7 +221,7 @@ class TheSandman(_TimerFormatting):
         self._basic_log_or_print_sleep_time_string(**kwargs)
 
         if self.use_visual_sleep:
-            self.visual_sleep(sleep_time_seconds)
+            self.visual_sleep(sleep_time_seconds, **kwargs)
         else:
             sleep(sleep_time_seconds)
 
